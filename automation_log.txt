@@ -1,0 +1,4 @@
+Automation log
+
+Last request: Default README request
+Repository: jgd230490-RBE/RBE_A1_Logistics
