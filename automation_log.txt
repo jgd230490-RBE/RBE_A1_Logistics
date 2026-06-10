@@ -1,5 +1,5 @@
 Automation log
 
-Last request: Generate a professional README describing this RBE logistics mapping app and its main goals.
+Last request: Build a comprehensive React dashboard with two views: 1) A 5-year forecasting matrix with all new metadata fields (IPT Teams, Work Sections, Work Types, Material Types, Quarries, Gates) - NO cascading restrictions, all dropdowns fully available. 2) A visualization dashboard with charts showing forecast data by year, material type, and gate location. Include editing functionality for existing forecasts. Use Tailwind CSS for professional styling. Provide complete ForecastMatrix.jsx, Dashboard.jsx, App.jsx, and ForecastService.js files.
 Repository: jgd230490-RBE/RBE_A1_Logistics
-README last updated by: Anthropic Claude (claude-sonnet-4-6)
+README last updated by: Anthropic Claude (claude-opus-4-8)
