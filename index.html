@@ -104,7 +104,6 @@
     // ==========================================
     // 1. PIPELINE DATA INJECTION PLACEHOLDERS
     // ==========================================
-    // DO NOT DELETE THESE - Your Colab pipeline looks for these exact words to inject data
     const a1_data = {geojson_str};
     const alignment_data = {alignment_str};
     const chainage_global_data = {chainage_global_str};
@@ -113,7 +112,7 @@
     // 2. MAPBOX INITIALIZATION & SECURITY TOKEN
     // ==========================================
     // CRITICAL: PASTE YOUR MAPBOX TOKEN BELOW!
-    mapboxgl.accessToken = 'pk.eyJ1IjoiamdkMjMwNDE5OTAiLCJhIjoiY21wcDgzdWl3MDFxNjJwczZzZ2NucDZvdCJ9.h-sg27GQ12YpCEfiXBlZGw';
+    mapboxgl.accessToken = 'YOUR_SECURE_MAPBOX_TOKEN_HERE';
 
     const map = new mapboxgl.Map({
         container: 'map',
@@ -194,7 +193,7 @@
     }
 
     // ==========================================
-    // 6. BRAND NEW 60-MONTH FORECASTING LOGIC
+    // 6. FORECAST DATA JOIN LOGIC (V1.2 - GEO-JOIN)
     // ==========================================
     async function toggleForecastLayer() {
         var checkbox = document.getElementById('toggle-forecast-routes');
@@ -205,16 +204,19 @@
         var dataSourceUrl = '/Scripts/wp3_timeline_forecast.csv'; 
 
         if (checkbox.checked) {
-            statusText.innerHTML = "Calculating timeline data...";
+            statusText.innerHTML = "Calculating and joining data...";
             statusText.style.color = "#007bff";
             
             try {
+                // 1. Fetch CSV
                 var response = await fetch(dataSourceUrl);
                 if (!response.ok) throw new Error("Failed to load CSV source file.");
                 var csvText = await response.text();
 
+                // 2. Parse CSV into a Lookup Dictionary
                 var rows = csvText.replace(/\r/g, '').split('\n');
-                var features = [];
+                var forecastLookup = {};
+                var routesCount = 0;
                 
                 for (var i = 1; i < rows.length; i++) {
                     var row = rows[i].trim();
@@ -225,7 +227,7 @@
                     var routeId = cols[0];
                     var status = cols[1];
                     var jointUse = cols[2];
-                    var coordString = cols[3];
+                    // We completely IGNORE cols[3] (Coordinates) per architecture update
                     
                     if (status === 'Assigned') {
                         var totalVehicles = 0;
@@ -233,7 +235,7 @@
                         var monthCount = 0;
 
                         for (var m = fromMonth; m <= toMonth; m++) {
-                            var colIndex = 3 + m; 
+                            var colIndex = 3 + m; // Matches column index offset
                             if (cols[colIndex]) {
                                 var dailyVal = parseInt(cols[colIndex]) || 0;
                                 totalVehicles += (dailyVal * 22); 
@@ -244,71 +246,81 @@
 
                         if (peakVehicles > 0) {
                             var avgDaily = Math.round((totalVehicles / 22) / monthCount);
-                            var routeCoords = coordString.split(';').map(function(pair) {
-                                var parts = pair.split('|');
-                                return [parseFloat(parts[0]), parseFloat(parts[1])];
-                            });
-
-                            features.push({
-                                type: "Feature",
-                                properties: {
-                                    route_id: routeId,
-                                    joint_use: jointUse,
-                                    avg_daily: avgDaily,
-                                    peak_daily: peakVehicles,
-                                    total_est: totalVehicles,
-                                    timeline: "M" + fromMonth + " to M" + toMonth
-                                },
-                                geometry: { type: "LineString", coordinates: routeCoords }
-                            });
+                            forecastLookup[routeId] = {
+                                joint_use: jointUse,
+                                avg_daily: avgDaily,
+                                peak_daily: peakVehicles,
+                                total_est: totalVehicles,
+                                timeline: "M" + fromMonth + " to M" + toMonth
+                            };
+                            routesCount++;
                         }
                     }
                 }
 
-                var geojsonData = { type: "FeatureCollection", features: features };
+                // 3. Inject new data directly into existing baked-in features
+                if (a1_data && a1_data.features) {
+                    for (var j = 0; j < a1_data.features.length; j++) {
+                        var feat = a1_data.features[j];
+                        var rId = feat.properties.route_id || feat.properties.Route_ID;
 
-                if (!map.getSource('forecast-routes-source')) {
-                    map.addSource('forecast-routes-source', { type: 'geojson', data: geojsonData });
-                } else {
-                    map.getSource('forecast-routes-source').setData(geojsonData);
+                        if (rId && forecastLookup[rId]) {
+                            feat.properties.is_forecast = true; // Tag it for Mapbox filtering
+                            feat.properties.f_avg = forecastLookup[rId].avg_daily;
+                            feat.properties.f_peak = forecastLookup[rId].peak_daily;
+                            feat.properties.f_total = forecastLookup[rId].total_est;
+                            feat.properties.f_joint = forecastLookup[rId].joint_use;
+                            feat.properties.f_time = forecastLookup[rId].timeline;
+                        } else {
+                            feat.properties.is_forecast = false;
+                        }
+                    }
+                    // Update Mapbox with the enriched data
+                    map.getSource('a1-routes-source').setData(a1_data);
                 }
 
-                if (!map.getLayer('forecast-lines-layer')) {
+                // 4. Create an Overlay Layer using the Enriched Baseline Source
+                if (!map.getLayer('forecast-overlay-layer')) {
                     map.addLayer({
-                        id: 'forecast-lines-layer',
+                        id: 'forecast-overlay-layer',
                         type: 'line',
-                        source: 'forecast-routes-source',
-                        paint: { 'line-color': '#007bff', 'line-width': 6, 'line-opacity': 0.7 }
+                        source: 'a1-routes-source',
+                        filter: ['==', 'is_forecast', true], // Only draw routes found in CSV
+                        paint: { 'line-color': '#007bff', 'line-width': 6, 'line-opacity': 0.8 }
                     });
 
-                    map.on('click', 'forecast-lines-layer', function(e) {
+                    // Add Custom Forecast Popup
+                    map.on('click', 'forecast-overlay-layer', function(e) {
                         var props = e.features[0].properties;
+                        var rId = props.route_id || props.Route_ID || 'Unknown Route';
                         var htmlContent = 
                             '<div style="font-family: sans-serif; color: #333; min-width: 200px;">' +
-                            '<h4 style="margin: 0 0 8px 0; border-bottom: 1px solid #ccc; padding-bottom: 4px; color: #007bff;">' + props.route_id + '</h4>' +
-                            '<p style="margin: 4px 0; font-size: 12px;"><b>Timeline:</b> ' + props.timeline + '</p>' +
-                            '<p style="margin: 4px 0; font-size: 12px;"><b>Joint Use Road:</b> ' + props.joint_use + '</p>' +
+                            '<h4 style="margin: 0 0 8px 0; border-bottom: 1px solid #ccc; padding-bottom: 4px; color: #007bff;">' + rId + '</h4>' +
+                            '<p style="margin: 4px 0; font-size: 12px;"><b>Timeline:</b> ' + props.f_time + '</p>' +
+                            '<p style="margin: 4px 0; font-size: 12px;"><b>Joint Use Road:</b> ' + props.f_joint + '</p>' +
                             '<div style="background: #f8f9fa; padding: 8px; margin-top: 8px; border-radius: 4px; border: 1px solid #eee;">' +
-                            '<p style="margin: 2px 0; font-size: 11px;"><b>Average Daily:</b> ' + props.avg_daily + ' veh/day</p>' +
-                            '<p style="margin: 2px 0; font-size: 11px;"><b>Peak Daily:</b> <span style="color: red;">' + props.peak_daily + ' veh/day</span></p>' +
-                            '<p style="margin: 2px 0; font-size: 11px;"><b>Total Estimated:</b> ' + props.total_est + ' vehicles</p>' +
+                            '<p style="margin: 2px 0; font-size: 11px;"><b>Average Daily:</b> ' + props.f_avg + ' veh/day</p>' +
+                            '<p style="margin: 2px 0; font-size: 11px;"><b>Peak Daily:</b> <span style="color: red;">' + props.f_peak + ' veh/day</span></p>' +
+                            '<p style="margin: 2px 0; font-size: 11px;"><b>Total Estimated:</b> ' + props.f_total + ' vehicles</p>' +
                             '</div></div>';
 
                         new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(htmlContent).addTo(map);
                     });
 
-                    map.on('mouseenter', 'forecast-lines-layer', function() { map.getCanvas().style.cursor = 'pointer'; });
-                    map.on('mouseleave', 'forecast-lines-layer', function() { map.getCanvas().style.cursor = ''; });
+                    map.on('mouseenter', 'forecast-overlay-layer', function() { map.getCanvas().style.cursor = 'pointer'; });
+                    map.on('mouseleave', 'forecast-overlay-layer', function() { map.getCanvas().style.cursor = ''; });
                 }
 
-                if (!map.getLayer('forecast-labels-layer')) {
+                // 5. Add Live Labels
+                if (!map.getLayer('forecast-overlay-labels')) {
                     map.addLayer({
-                        id: 'forecast-labels-layer',
+                        id: 'forecast-overlay-labels',
                         type: 'symbol',
-                        source: 'forecast-routes-source',
+                        source: 'a1-routes-source',
+                        filter: ['==', 'is_forecast', true],
                         layout: {
                             'symbol-placement': 'line-center',
-                            'text-field': ['concat', 'Avg: ', ['get', 'avg_daily']],
+                            'text-field': ['concat', 'Avg: ', ['get', 'f_avg']],
                             'text-size': 13,
                             'text-offset': [0, -1]
                         },
@@ -316,10 +328,11 @@
                     });
                 }
 
-                map.setLayoutProperty('forecast-lines-layer', 'visibility', 'visible');
-                map.setLayoutProperty('forecast-labels-layer', 'visibility', 'visible');
+                // Ensure layers are visible
+                map.setLayoutProperty('forecast-overlay-layer', 'visibility', 'visible');
+                map.setLayoutProperty('forecast-overlay-labels', 'visibility', 'visible');
                 
-                statusText.innerHTML = "✅ Displaying " + features.length + " active routes";
+                statusText.innerHTML = "✅ Filtering " + routesCount + " active routes";
                 statusText.style.color = "green";
 
             } catch (error) {
@@ -328,13 +341,14 @@
                 statusText.style.color = "red";
             }
         } else {
-            if (map.getLayer('forecast-lines-layer')) {
-                map.setLayoutProperty('forecast-lines-layer', 'visibility', 'none');
+            // Hide layers if toggled off
+            if (map.getLayer('forecast-overlay-layer')) {
+                map.setLayoutProperty('forecast-overlay-layer', 'visibility', 'none');
             }
-            if (map.getLayer('forecast-labels-layer')) {
-                map.setLayoutProperty('forecast-labels-layer', 'visibility', 'none');
+            if (map.getLayer('forecast-overlay-labels')) {
+                map.setLayoutProperty('forecast-overlay-labels', 'visibility', 'none');
             }
-            statusText.innerHTML = "Forecast routes hidden.";
+            statusText.innerHTML = "Forecast filters cleared.";
             statusText.style.color = "#666";
         }
     }
