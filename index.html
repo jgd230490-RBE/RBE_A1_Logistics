@@ -32,26 +32,33 @@
 <div id="menu-toggle" onclick="document.getElementById('main-sidebar').classList.toggle('closed'); document.body.classList.toggle('sidebar-closed'); setTimeout(() => map.resize(), 300);">☰ Control Panel</div>
 <div class="sidebar" id="main-sidebar">
     <h2>A1 Logistics Engine</h2>
+    
     <div class="kpi-container">
         <h3>Live Filtered Metrics</h3>
         <div class="kpi-card"><div class="kpi-val" id="kpi-routes">0</div><div class="kpi-lbl">Active Routes</div></div>
-        <div class="kpi-card"><div class="kpi-val" id="kpi-capacity">0</div><div class="kpi-lbl">Network Shift Capacity</div></div>
-    </div>
-    
-    <div class="control-group">
-        <h3>Advanced Route Filtering</h3>
-        <select id="filter-origin"><option value="ALL">All Origins (Quarries/Ports)</option></select>
-        <select id="filter-dest"><option value="ALL">All Destinations (Compounds)</option></select>
-        <select id="filter-leg"><option value="ALL">All Route Legs</option></select>
-        <select id="filter-ipt"><option value="ALL">All Sector IPTs</option></select>
-        <button style="background: #666;">Reset Filters</button>
     </div>
 
     <div class="control-group">
-        <h3>Infrastructure Overlays</h3>
+        <h3>Advanced Route Filtering</h3>
+        <select id="filter-origin" onchange="applyFilters()"><option value="ALL">All Origins (Quarries/Ports)</option></select>
+        <select id="filter-dest" onchange="applyFilters()"><option value="ALL">All Destinations (Compounds)</option></select>
+        <select id="filter-section" onchange="applyFilters()"><option value="ALL">All Works Sections</option></select>
+        <select id="filter-ipt" onchange="applyFilters()"><option value="ALL">All Sector IPTs</option></select>
+        <button onclick="resetFilters()" style="background: #666;">Reset Filters</button>
+    </div>
+
+    <div class="control-group">
+        <h3>Map Style & Overlays</h3>
+        <select id="basemap-style">
+            <option value="light-v11">Light (Default)</option>
+            <option value="satellite-streets-v12">Satellite Streets</option>
+            <option value="dark-v11">Dark Mode</option>
+            <option value="streets-v12">Standard Streets</option>
+            <option value="outdoors-v12">Outdoors</option>
+        </select>
         <div class="control-item"><label><input type="checkbox" id="layer-alignment" checked onchange="toggleLayer('rail-alignment-layer')"> Rail Alignment</label><span class="color-dot" style="background-color: #000000; border-radius: 0; width: 12px; height: 1.5px;"></span></div>
-        <div class="control-item"><label><input type="checkbox" id="layer-chainage" checked> Chainage Markers</label><span class="color-dot" style="background-color: #333333; height:4px; border-radius:50%;"></span></div>
-        <div class="control-item"><label><input type="checkbox" id="layer-nodes" checked> Sites & Assets</label><span class="color-dot" style="background-color: #00FFFF; height:4px; border-radius:50%;"></span></div>
+        <div class="control-item"><label><input type="checkbox" id="layer-chainage" checked onchange="toggleLayer('chainage-layer')"> Chainage Markers</label><span class="color-dot" style="background-color: #333333; height:4px; border-radius:50%;"></span></div>
+        <div class="control-item"><label><input type="checkbox" id="layer-nodes" checked onchange="toggleLayer('nodes-layer')"> Sites & Assets</label><span class="color-dot" style="background-color: #00FFFF; height:4px; border-radius:50%;"></span></div>
     </div>
 
     <div class="control-group">
@@ -101,17 +108,12 @@
 <div id="map"></div>
 
 <script>
-    // ==========================================
-    // 1. PIPELINE DATA INJECTION PLACEHOLDERS
-    // ==========================================
-    const a1_data = {geojson_str};
-    const alignment_data = {alignment_str};
-    const chainage_global_data = {chainage_global_str};
+    // 1. DATA INJECTION
+    const a1_data = {"type": "FeatureCollection", "features": []};
+    const alignment_data = {"type": "FeatureCollection", "features": []};
+    const chainage_global_data = {"type": "FeatureCollection", "features": []};
 
-    // ==========================================
-    // 2. MAPBOX INITIALIZATION & SECURITY TOKEN
-    // ==========================================
-    // CRITICAL: PASTE YOUR MAPBOX TOKEN BELOW!
+    // 2. MAPBOX INITIALIZATION
     mapboxgl.accessToken = 'pk.eyJ1IjoiamdkMjMwNDE5OTAiLCJhIjoiY21wcDgzdWl3MDFxNjJwczZzZ2NucDZvdCJ9.h-sg27GQ12YpCEfiXBlZGw';
 
     const map = new mapboxgl.Map({
@@ -123,62 +125,247 @@
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-    map.on('load', function() {
+    document.getElementById('basemap-style').addEventListener('change', function(e) {
+        map.setStyle('mapbox://styles/mapbox/' + e.target.value);
+    });
+
+    // 3. CORE RENDERING ENGINE
+    map.on('style.load', function() {
         if (a1_data && a1_data.features) {
-            map.addSource('a1-routes-source', { type: 'geojson', data: a1_data });
+            if (!map.getSource('a1-routes-source')) {
+                map.addSource('a1-routes-source', { type: 'geojson', data: a1_data });
+            }
             setupBaselineLayers();
+            populateFilters(); // Auto-detect and populate dropdowns on load
+            applyFilters();    // Update KPI based on initial full load
         }
+        
         if (alignment_data && alignment_data.features) {
-            map.addSource('rail-alignment-source', { type: 'geojson', data: alignment_data });
-            map.addLayer({
-                id: 'rail-alignment-layer',
-                type: 'line',
-                source: 'rail-alignment-source',
-                paint: { 'line-color': '#000000', 'line-width': 1.5 },
-                layout: { 'visibility': 'visible' }
-            });
+            if (!map.getSource('rail-alignment-source')) {
+                map.addSource('rail-alignment-source', { type: 'geojson', data: alignment_data });
+            }
+            if (!map.getLayer('rail-alignment-layer')) {
+                var visAlign = document.getElementById('layer-alignment').checked ? 'visible' : 'none';
+                map.addLayer({
+                    id: 'rail-alignment-layer',
+                    type: 'line',
+                    source: 'rail-alignment-source',
+                    paint: { 'line-color': '#000000', 'line-width': 1.5 },
+                    layout: { 'visibility': visAlign }
+                });
+            }
+        }
+
+        if (chainage_global_data && chainage_global_data.features) {
+            if (!map.getSource('chainage-source')) {
+                map.addSource('chainage-source', { type: 'geojson', data: chainage_global_data });
+            }
+            if (!map.getLayer('chainage-layer')) {
+                var visChainage = document.getElementById('layer-chainage').checked ? 'visible' : 'none';
+                map.addLayer({
+                    id: 'chainage-layer',
+                    type: 'circle',
+                    source: 'chainage-source',
+                    paint: { 'circle-color': '#333333', 'circle-radius': 4 },
+                    layout: { 'visibility': visChainage }
+                });
+            }
+            if (!map.getLayer('nodes-layer')) {
+                var visNodes = document.getElementById('layer-nodes').checked ? 'visible' : 'none';
+                map.addLayer({
+                    id: 'nodes-layer',
+                    type: 'circle',
+                    source: 'chainage-source',
+                    paint: { 'circle-color': '#00FFFF', 'circle-radius': 6, 'circle-stroke-width': 1, 'circle-stroke-color': '#000000' },
+                    layout: { 'visibility': visNodes }
+                });
+            }
+        }
+
+        if (document.getElementById('toggle-forecast-routes').checked) {
+            toggleForecastLayer();
         }
     });
 
+    // ==========================================
+    // BRAND NEW: DYNAMIC DATA FILTERING ENGINE
+    // ==========================================
+    window.filterKeyMap = { origin: null, dest: null, section: null, ipt: null };
+
+    function populateFilters() {
+        if (!a1_data || !a1_data.features || a1_data.features.length === 0) return;
+        
+        // 1. Auto-detect CSV Column Names
+        let props = a1_data.features[0].properties;
+        Object.keys(props).forEach(k => {
+            let kl = k.toLowerCase();
+            if (!window.filterKeyMap.origin && (kl.includes('origin') || kl.includes('quarry'))) window.filterKeyMap.origin = k;
+            if (!window.filterKeyMap.dest && (kl.includes('dest') || kl.includes('compound'))) window.filterKeyMap.dest = k;
+            if (!window.filterKeyMap.section && (kl.includes('section') || kl.includes('leg') || kl.includes('works'))) window.filterKeyMap.section = k;
+            if (!window.filterKeyMap.ipt && (kl.includes('ipt') || kl.includes('sector'))) window.filterKeyMap.ipt = k;
+        });
+
+        // 2. Gather Unique Data Points
+        let origins = new Set(), dests = new Set(), sections = new Set(), ipts = new Set();
+        a1_data.features.forEach(f => {
+            let p = f.properties;
+            if (window.filterKeyMap.origin && p[window.filterKeyMap.origin]) origins.add(p[window.filterKeyMap.origin]);
+            if (window.filterKeyMap.dest && p[window.filterKeyMap.dest]) dests.add(p[window.filterKeyMap.dest]);
+            if (window.filterKeyMap.section && p[window.filterKeyMap.section]) sections.add(p[window.filterKeyMap.section]);
+            if (window.filterKeyMap.ipt && p[window.filterKeyMap.ipt]) ipts.add(p[window.filterKeyMap.ipt]);
+        });
+
+        // 3. Inject into UI Dropdowns (Only once to avoid duplicates on style change)
+        const addOptions = (selectId, set) => {
+            let select = document.getElementById(selectId);
+            if (select.options.length <= 1) { // Only populate if empty
+                Array.from(set).filter(Boolean).sort().forEach(val => {
+                    let opt = document.createElement('option');
+                    opt.value = val;
+                    opt.innerHTML = val;
+                    select.appendChild(opt);
+                });
+            }
+        };
+
+        addOptions('filter-origin', origins);
+        addOptions('filter-dest', dests);
+        addOptions('filter-section', sections);
+        addOptions('filter-ipt', ipts);
+    }
+
+    function applyFilters() {
+        let originVal = document.getElementById('filter-origin').value;
+        let destVal = document.getElementById('filter-dest').value;
+        let sectionVal = document.getElementById('filter-section').value;
+        let iptVal = document.getElementById('filter-ipt').value;
+
+        // Build the Mapbox Filter Array
+        let filterArr = ['all'];
+        if (originVal !== 'ALL' && window.filterKeyMap.origin) filterArr.push(['==', window.filterKeyMap.origin, originVal]);
+        if (destVal !== 'ALL' && window.filterKeyMap.dest) filterArr.push(['==', window.filterKeyMap.dest, destVal]);
+        if (sectionVal !== 'ALL' && window.filterKeyMap.section) filterArr.push(['==', window.filterKeyMap.section, sectionVal]);
+        if (iptVal !== 'ALL' && window.filterKeyMap.ipt) filterArr.push(['==', window.filterKeyMap.ipt, iptVal]);
+
+        // Apply filters to standard layers (must preserve the 'type' filter as well)
+        const routeLayers = [
+            {id: 'inbound-highway-layer', typeMatch: 'Inbound Highway'},
+            {id: 'outbound-highway-layer', typeMatch: 'Outbound Highway'},
+            {id: 'temp-haul-layer', typeMatch: 'Temp Haul Track'},
+            {id: 'rail-freight-layer', typeMatch: 'Rail Link'}
+        ];
+
+        routeLayers.forEach(layer => {
+            if (map.getLayer(layer.id)) {
+                let layerFilter = ['all', ['==', 'type', layer.typeMatch]];
+                for(let i=1; i<filterArr.length; i++) layerFilter.push(filterArr[i]);
+                map.setFilter(layer.id, layerFilter);
+            }
+        });
+
+        // Apply filters to Forecast overlays
+        if (map.getLayer('forecast-overlay-layer')) {
+            let forecastFilter = ['all', ['==', 'is_forecast', true]];
+            for(let i=1; i<filterArr.length; i++) forecastFilter.push(filterArr[i]);
+            map.setFilter('forecast-overlay-layer', forecastFilter);
+            if (map.getLayer('forecast-overlay-labels')) map.setFilter('forecast-overlay-labels', forecastFilter);
+        }
+
+        // Update the KPI Tracker
+        updateKPIs();
+    }
+
+    function updateKPIs() {
+        let visibleCount = 0;
+        
+        a1_data.features.forEach(f => {
+            let props = f.properties;
+            let isVisible = true;
+            
+            if (document.getElementById('filter-origin').value !== 'ALL' && window.filterKeyMap.origin) {
+                if (props[window.filterKeyMap.origin] !== document.getElementById('filter-origin').value) isVisible = false;
+            }
+            if (document.getElementById('filter-dest').value !== 'ALL' && window.filterKeyMap.dest) {
+                if (props[window.filterKeyMap.dest] !== document.getElementById('filter-dest').value) isVisible = false;
+            }
+            if (document.getElementById('filter-section').value !== 'ALL' && window.filterKeyMap.section) {
+                if (props[window.filterKeyMap.section] !== document.getElementById('filter-section').value) isVisible = false;
+            }
+            if (document.getElementById('filter-ipt').value !== 'ALL' && window.filterKeyMap.ipt) {
+                if (props[window.filterKeyMap.ipt] !== document.getElementById('filter-ipt').value) isVisible = false;
+            }
+
+            if (isVisible) visibleCount++;
+        });
+
+        document.getElementById('kpi-routes').innerText = visibleCount;
+    }
+
+    function resetFilters() {
+        document.getElementById('filter-origin').value = 'ALL';
+        document.getElementById('filter-dest').value = 'ALL';
+        document.getElementById('filter-section').value = 'ALL';
+        document.getElementById('filter-ipt').value = 'ALL';
+        applyFilters();
+    }
+    // ==========================================
+
     function setupBaselineLayers() {
-        map.addLayer({
-            id: 'inbound-highway-layer',
-            type: 'line',
-            source: 'a1-routes-source',
-            filter: ['all', ['==', 'type', 'Inbound Highway']],
-            paint: { 'line-color': '#008000', 'line-width': 3 }
-        });
+        var visInbound = document.getElementById('layer-inbound').checked ? 'visible' : 'none';
+        var visOutbound = document.getElementById('layer-outbound').checked ? 'visible' : 'none';
+        var visTemp = document.getElementById('layer-temp').checked ? 'visible' : 'none';
+        var visRail = document.getElementById('layer-rail').checked ? 'visible' : 'none';
 
-        map.addLayer({
-            id: 'outbound-highway-layer',
-            type: 'line',
-            source: 'a1-routes-source',
-            filter: ['all', ['==', 'type', 'Outbound Highway']],
-            paint: { 'line-color': '#FFA500', 'line-width': 3 }
-        });
-
-        map.addLayer({
-            id: 'temp-haul-layer',
-            type: 'line',
-            source: 'a1-routes-source',
-            filter: ['all', ['==', 'type', 'Temp Haul Track']],
-            paint: { 'line-color': '#FF0000', 'line-width': 4 }
-        });
-
-        map.addLayer({
-            id: 'rail-freight-layer',
-            type: 'line',
-            source: 'a1-routes-source',
-            filter: ['all', ['==', 'type', 'Rail Link']],
-            paint: { 'line-color': '#800080', 'line-width': 4, 'line-dasharray': [3, 2] }
-        });
-
+        if (!map.getLayer('inbound-highway-layer')) {
+            map.addLayer({
+                id: 'inbound-highway-layer',
+                type: 'line',
+                source: 'a1-routes-source',
+                filter: ['all', ['==', 'type', 'Inbound Highway']],
+                paint: { 'line-color': '#008000', 'line-width': 3 },
+                layout: { 'visibility': visInbound }
+            });
+        }
+        if (!map.getLayer('outbound-highway-layer')) {
+            map.addLayer({
+                id: 'outbound-highway-layer',
+                type: 'line',
+                source: 'a1-routes-source',
+                filter: ['all', ['==', 'type', 'Outbound Highway']],
+                paint: { 'line-color': '#FFA500', 'line-width': 3 },
+                layout: { 'visibility': visOutbound }
+            });
+        }
+        if (!map.getLayer('temp-haul-layer')) {
+            map.addLayer({
+                id: 'temp-haul-layer',
+                type: 'line',
+                source: 'a1-routes-source',
+                filter: ['all', ['==', 'type', 'Temp Haul Track']],
+                paint: { 'line-color': '#FF0000', 'line-width': 4 },
+                layout: { 'visibility': visTemp }
+            });
+        }
+        if (!map.getLayer('rail-freight-layer')) {
+            map.addLayer({
+                id: 'rail-freight-layer',
+                type: 'line',
+                source: 'a1-routes-source',
+                filter: ['all', ['==', 'type', 'Rail Link']],
+                paint: { 'line-color': '#800080', 'line-width': 4, 'line-dasharray': [3, 2] },
+                layout: { 'visibility': visRail }
+            });
+        }
         setupPopupInteractions();
     }
 
     function setupPopupInteractions() {
         const layers = ['inbound-highway-layer', 'outbound-highway-layer', 'temp-haul-layer', 'rail-freight-layer'];
         layers.forEach(function(layerId) {
+            map.off('click', layerId);
+            map.off('mouseenter', layerId);
+            map.off('mouseleave', layerId);
+
             map.on('click', layerId, function(e) {
                 if (e.features.length > 0 && e.features[0].properties.html) {
                     new mapboxgl.Popup()
@@ -192,9 +379,7 @@
         });
     }
 
-    // ==========================================
-    // 6. FORECAST DATA JOIN LOGIC (V1.2 - GEO-JOIN)
-    // ==========================================
+    // 6. FORECAST DATA JOIN LOGIC 
     async function toggleForecastLayer() {
         var checkbox = document.getElementById('toggle-forecast-routes');
         var statusText = document.getElementById('forecast-status');
@@ -208,12 +393,10 @@
             statusText.style.color = "#007bff";
             
             try {
-                // 1. Fetch CSV
                 var response = await fetch(dataSourceUrl);
                 if (!response.ok) throw new Error("Failed to load CSV source file.");
                 var csvText = await response.text();
 
-                // 2. Parse CSV into a Lookup Dictionary
                 var rows = csvText.replace(/\r/g, '').split('\n');
                 var forecastLookup = {};
                 var routesCount = 0;
@@ -227,7 +410,6 @@
                     var routeId = cols[0];
                     var status = cols[1];
                     var jointUse = cols[2];
-                    // We completely IGNORE cols[3] (Coordinates) per architecture update
                     
                     if (status === 'Assigned') {
                         var totalVehicles = 0;
@@ -235,7 +417,7 @@
                         var monthCount = 0;
 
                         for (var m = fromMonth; m <= toMonth; m++) {
-                            var colIndex = 3 + m; // Matches column index offset
+                            var colIndex = 3 + m; 
                             if (cols[colIndex]) {
                                 var dailyVal = parseInt(cols[colIndex]) || 0;
                                 totalVehicles += (dailyVal * 22); 
@@ -258,14 +440,13 @@
                     }
                 }
 
-                // 3. Inject new data directly into existing baked-in features
                 if (a1_data && a1_data.features) {
                     for (var j = 0; j < a1_data.features.length; j++) {
                         var feat = a1_data.features[j];
-                        var rId = feat.properties.route_id || feat.properties.Route_ID;
+                        var rId = feat.properties.Route_ID || feat.properties.route_id;
 
                         if (rId && forecastLookup[rId]) {
-                            feat.properties.is_forecast = true; // Tag it for Mapbox filtering
+                            feat.properties.is_forecast = true; 
                             feat.properties.f_avg = forecastLookup[rId].avg_daily;
                             feat.properties.f_peak = forecastLookup[rId].peak_daily;
                             feat.properties.f_total = forecastLookup[rId].total_est;
@@ -275,24 +456,21 @@
                             feat.properties.is_forecast = false;
                         }
                     }
-                    // Update Mapbox with the enriched data
                     map.getSource('a1-routes-source').setData(a1_data);
                 }
 
-                // 4. Create an Overlay Layer using the Enriched Baseline Source
                 if (!map.getLayer('forecast-overlay-layer')) {
                     map.addLayer({
                         id: 'forecast-overlay-layer',
                         type: 'line',
                         source: 'a1-routes-source',
-                        filter: ['==', 'is_forecast', true], // Only draw routes found in CSV
+                        filter: ['==', 'is_forecast', true], 
                         paint: { 'line-color': '#007bff', 'line-width': 6, 'line-opacity': 0.8 }
                     });
 
-                    // Add Custom Forecast Popup
                     map.on('click', 'forecast-overlay-layer', function(e) {
                         var props = e.features[0].properties;
-                        var rId = props.route_id || props.Route_ID || 'Unknown Route';
+                        var rId = props.Route_ID || props.route_id || 'Unknown Route';
                         var htmlContent = 
                             '<div style="font-family: sans-serif; color: #333; min-width: 200px;">' +
                             '<h4 style="margin: 0 0 8px 0; border-bottom: 1px solid #ccc; padding-bottom: 4px; color: #007bff;">' + rId + '</h4>' +
@@ -309,9 +487,10 @@
 
                     map.on('mouseenter', 'forecast-overlay-layer', function() { map.getCanvas().style.cursor = 'pointer'; });
                     map.on('mouseleave', 'forecast-overlay-layer', function() { map.getCanvas().style.cursor = ''; });
+                } else {
+                    map.setLayoutProperty('forecast-overlay-layer', 'visibility', 'visible');
                 }
 
-                // 5. Add Live Labels
                 if (!map.getLayer('forecast-overlay-labels')) {
                     map.addLayer({
                         id: 'forecast-overlay-labels',
@@ -326,14 +505,15 @@
                         },
                         paint: { 'text-color': '#ffffff', 'text-halo-color': '#004085', 'text-halo-width': 2 }
                     });
+                } else {
+                    map.setLayoutProperty('forecast-overlay-labels', 'visibility', 'visible');
                 }
-
-                // Ensure layers are visible
-                map.setLayoutProperty('forecast-overlay-layer', 'visibility', 'visible');
-                map.setLayoutProperty('forecast-overlay-labels', 'visibility', 'visible');
                 
                 statusText.innerHTML = "✅ Filtering " + routesCount + " active routes";
                 statusText.style.color = "green";
+                
+                // Re-apply standard dropdown filters onto the forecast layer
+                applyFilters(); 
 
             } catch (error) {
                 console.error("Error processing dataset:", error);
@@ -341,7 +521,6 @@
                 statusText.style.color = "red";
             }
         } else {
-            // Hide layers if toggled off
             if (map.getLayer('forecast-overlay-layer')) {
                 map.setLayoutProperty('forecast-overlay-layer', 'visibility', 'none');
             }
