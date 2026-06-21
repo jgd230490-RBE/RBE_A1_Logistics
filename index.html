@@ -113,6 +113,17 @@
     const alignment_data = {"type": "FeatureCollection", "features": []};
     const chainage_global_data = {"type": "FeatureCollection", "features": []};
 
+    // Global Key Detectors (Fixes Case Sensitivity Issues)
+    window.typeKey = 'type'; 
+    window.filterKeyMap = { origin: null, dest: null, section: null, ipt: null };
+
+    // Find exactly how your CSV capitalized the "Type" column
+    if (a1_data && a1_data.features && a1_data.features.length > 0) {
+        let keys = Object.keys(a1_data.features[0].properties);
+        let tk = keys.find(k => k.toLowerCase() === 'type' || k.toLowerCase() === 'route_type' || k.toLowerCase() === 'leg_type');
+        if (tk) window.typeKey = tk;
+    }
+
     // 2. MAPBOX INITIALIZATION
     mapboxgl.accessToken = 'pk.eyJ1IjoiamdkMjMwNDE5OTAiLCJhIjoiY21wcDgzdWl3MDFxNjJwczZzZ2NucDZvdCJ9.h-sg27GQ12YpCEfiXBlZGw';
 
@@ -136,8 +147,8 @@
                 map.addSource('a1-routes-source', { type: 'geojson', data: a1_data });
             }
             setupBaselineLayers();
-            populateFilters(); // Auto-detect and populate dropdowns on load
-            applyFilters();    // Update KPI based on initial full load
+            populateFilters(); 
+            applyFilters();    
         }
         
         if (alignment_data && alignment_data.features) {
@@ -187,15 +198,9 @@
         }
     });
 
-    // ==========================================
-    // BRAND NEW: DYNAMIC DATA FILTERING ENGINE
-    // ==========================================
-    window.filterKeyMap = { origin: null, dest: null, section: null, ipt: null };
-
     function populateFilters() {
         if (!a1_data || !a1_data.features || a1_data.features.length === 0) return;
         
-        // 1. Auto-detect CSV Column Names
         let props = a1_data.features[0].properties;
         Object.keys(props).forEach(k => {
             let kl = k.toLowerCase();
@@ -205,7 +210,6 @@
             if (!window.filterKeyMap.ipt && (kl.includes('ipt') || kl.includes('sector'))) window.filterKeyMap.ipt = k;
         });
 
-        // 2. Gather Unique Data Points
         let origins = new Set(), dests = new Set(), sections = new Set(), ipts = new Set();
         a1_data.features.forEach(f => {
             let p = f.properties;
@@ -215,10 +219,9 @@
             if (window.filterKeyMap.ipt && p[window.filterKeyMap.ipt]) ipts.add(p[window.filterKeyMap.ipt]);
         });
 
-        // 3. Inject into UI Dropdowns (Only once to avoid duplicates on style change)
         const addOptions = (selectId, set) => {
             let select = document.getElementById(selectId);
-            if (select.options.length <= 1) { // Only populate if empty
+            if (select.options.length <= 1) { 
                 Array.from(set).filter(Boolean).sort().forEach(val => {
                     let opt = document.createElement('option');
                     opt.value = val;
@@ -240,14 +243,13 @@
         let sectionVal = document.getElementById('filter-section').value;
         let iptVal = document.getElementById('filter-ipt').value;
 
-        // Build the Mapbox Filter Array
         let filterArr = ['all'];
         if (originVal !== 'ALL' && window.filterKeyMap.origin) filterArr.push(['==', window.filterKeyMap.origin, originVal]);
         if (destVal !== 'ALL' && window.filterKeyMap.dest) filterArr.push(['==', window.filterKeyMap.dest, destVal]);
         if (sectionVal !== 'ALL' && window.filterKeyMap.section) filterArr.push(['==', window.filterKeyMap.section, sectionVal]);
         if (iptVal !== 'ALL' && window.filterKeyMap.ipt) filterArr.push(['==', window.filterKeyMap.ipt, iptVal]);
 
-        // Apply filters to standard layers (must preserve the 'type' filter as well)
+        // Fix: Use the dynamic auto-detected typeKey!
         const routeLayers = [
             {id: 'inbound-highway-layer', typeMatch: 'Inbound Highway'},
             {id: 'outbound-highway-layer', typeMatch: 'Outbound Highway'},
@@ -257,13 +259,12 @@
 
         routeLayers.forEach(layer => {
             if (map.getLayer(layer.id)) {
-                let layerFilter = ['all', ['==', 'type', layer.typeMatch]];
+                let layerFilter = ['all', ['==', window.typeKey, layer.typeMatch]];
                 for(let i=1; i<filterArr.length; i++) layerFilter.push(filterArr[i]);
                 map.setFilter(layer.id, layerFilter);
             }
         });
 
-        // Apply filters to Forecast overlays
         if (map.getLayer('forecast-overlay-layer')) {
             let forecastFilter = ['all', ['==', 'is_forecast', true]];
             for(let i=1; i<filterArr.length; i++) forecastFilter.push(filterArr[i]);
@@ -271,13 +272,11 @@
             if (map.getLayer('forecast-overlay-labels')) map.setFilter('forecast-overlay-labels', forecastFilter);
         }
 
-        // Update the KPI Tracker
         updateKPIs();
     }
 
     function updateKPIs() {
         let visibleCount = 0;
-        
         a1_data.features.forEach(f => {
             let props = f.properties;
             let isVisible = true;
@@ -308,7 +307,6 @@
         document.getElementById('filter-ipt').value = 'ALL';
         applyFilters();
     }
-    // ==========================================
 
     function setupBaselineLayers() {
         var visInbound = document.getElementById('layer-inbound').checked ? 'visible' : 'none';
@@ -316,12 +314,13 @@
         var visTemp = document.getElementById('layer-temp').checked ? 'visible' : 'none';
         var visRail = document.getElementById('layer-rail').checked ? 'visible' : 'none';
 
+        // Use auto-detected typeKey
         if (!map.getLayer('inbound-highway-layer')) {
             map.addLayer({
                 id: 'inbound-highway-layer',
                 type: 'line',
                 source: 'a1-routes-source',
-                filter: ['all', ['==', 'type', 'Inbound Highway']],
+                filter: ['all', ['==', window.typeKey, 'Inbound Highway']],
                 paint: { 'line-color': '#008000', 'line-width': 3 },
                 layout: { 'visibility': visInbound }
             });
@@ -331,7 +330,7 @@
                 id: 'outbound-highway-layer',
                 type: 'line',
                 source: 'a1-routes-source',
-                filter: ['all', ['==', 'type', 'Outbound Highway']],
+                filter: ['all', ['==', window.typeKey, 'Outbound Highway']],
                 paint: { 'line-color': '#FFA500', 'line-width': 3 },
                 layout: { 'visibility': visOutbound }
             });
@@ -341,7 +340,7 @@
                 id: 'temp-haul-layer',
                 type: 'line',
                 source: 'a1-routes-source',
-                filter: ['all', ['==', 'type', 'Temp Haul Track']],
+                filter: ['all', ['==', window.typeKey, 'Temp Haul Track']],
                 paint: { 'line-color': '#FF0000', 'line-width': 4 },
                 layout: { 'visibility': visTemp }
             });
@@ -351,7 +350,7 @@
                 id: 'rail-freight-layer',
                 type: 'line',
                 source: 'a1-routes-source',
-                filter: ['all', ['==', 'type', 'Rail Link']],
+                filter: ['all', ['==', window.typeKey, 'Rail Link']],
                 paint: { 'line-color': '#800080', 'line-width': 4, 'line-dasharray': [3, 2] },
                 layout: { 'visibility': visRail }
             });
@@ -379,14 +378,15 @@
         });
     }
 
-    // 6. FORECAST DATA JOIN LOGIC 
+    // 6. FORECAST DATA JOIN LOGIC (FIXED GITHUB PATH: ./Scripts/...)
     async function toggleForecastLayer() {
         var checkbox = document.getElementById('toggle-forecast-routes');
         var statusText = document.getElementById('forecast-status');
         var fromMonth = parseInt(document.getElementById('timeline-from').value);
         var toMonth = parseInt(document.getElementById('timeline-to').value);
         
-        var dataSourceUrl = '/Scripts/wp3_timeline_forecast.csv'; 
+        // V1.5 FIX: The tiny dot '.' stops GitHub from throwing a 404 Error!
+        var dataSourceUrl = './Scripts/wp3_timeline_forecast.csv'; 
 
         if (checkbox.checked) {
             statusText.innerHTML = "Calculating and joining data...";
@@ -512,7 +512,6 @@
                 statusText.innerHTML = "✅ Filtering " + routesCount + " active routes";
                 statusText.style.color = "green";
                 
-                // Re-apply standard dropdown filters onto the forecast layer
                 applyFilters(); 
 
             } catch (error) {
