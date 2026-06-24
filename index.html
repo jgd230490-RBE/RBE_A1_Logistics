@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>A1 Rail Baltica Logistics</title>
+    <title>Alliance 1 Logistics Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
@@ -32,7 +32,7 @@
 <body>
 <div id="menu-toggle" onclick="toggleSidebar()">☰ Control Panel</div>
 <div class="sidebar" id="main-sidebar">
-    <h2>A1 Logistics (V17 Restored)</h2>
+    <h2 class="rb-title">Alliance 1 Logistics Dashboard</h2>
     <div class="kpi-container">
         <h3>Live Filtered Metrics</h3>
         <div class="kpi-card"><div class="kpi-val" id="kpi-routes">0</div><div class="kpi-lbl">Active HGV Routes</div></div>
@@ -161,11 +161,77 @@
         if (!map.getSource('alignment-source')) map.addSource('alignment-source', { type: 'geojson', data: alignment_data });
         if (!map.getSource('chainage-source')) map.addSource('chainage-source', { type: 'geojson', data: chainage_global_data });
 
-        // V17 Layers RESTORED
-        map.addLayer({ 'id': 'inbound-lines', 'type': 'line', 'source': 'routes-source', 'paint': { 'line-color': '#00ba3e', 'line-width': 3, 'line-opacity': 0.4 } });
-        map.addLayer({ 'id': 'outbound-lines', 'type': 'line', 'source': 'routes-source', 'paint': { 'line-color': '#ff8c00', 'line-width': 3, 'line-opacity': 0.4 } });
-        map.addLayer({ 'id': 'temp-lines', 'type': 'line', 'source': 'routes-source', 'paint': { 'line-color': '#cc00ff', 'line-width': 4, 'line-opacity': 0.9 } });
-        map.addLayer({ 'id': 'rail-link', 'type': 'line', 'source': 'routes-source', 'filter': ['==', 'type', 'Rail Link'], 'layout': { 'visibility': document.getElementById('layer-rail').checked ? 'visible' : 'none' }, 'paint': { 'line-color': '#1e90ff', 'line-width': 4, 'line-dasharray': [3, 2] } });
+        // --- PROFESSIONAL MAPBOX STYLING (Corporate Palette + Highway Offsets) ---
+        
+        // 1. INBOUND ROUTES (Deep Sapphire Blue)
+        // Casing (Halo)
+        map.addLayer({
+            'id': 'inbound-lines-casing',
+            'type': 'line',
+            'source': 'routes-source',
+            'filter': ['==', ['get', 'route_leg'], 'Inbound'], 
+            'paint': { 
+                'line-color': '#084298', 
+                'line-width': ['interpolate', ['linear'], ['zoom'], 7, 3, 12, 8], 
+                'line-opacity': 0.3,
+                'line-offset': ['interpolate', ['linear'], ['zoom'], 7, -1, 12, -4]
+            }
+        });
+        // Core Line
+        map.addLayer({
+            'id': 'inbound-lines',
+            'type': 'line',
+            'source': 'routes-source',
+            'filter': ['==', ['get', 'route_leg'], 'Inbound'], 
+            'paint': { 
+                'line-color': '#0d6efd', 
+                'line-width': ['interpolate', ['linear'], ['zoom'], 7, 1.5, 12, 4], 
+                'line-opacity': 0.9,
+                'line-offset': ['interpolate', ['linear'], ['zoom'], 7, -1, 12, -4]
+            }
+        });
+
+        // 2. OUTBOUND ROUTES (Bright Cyan/Teal)
+        // Casing (Halo)
+        map.addLayer({
+            'id': 'outbound-lines-casing',
+            'type': 'line',
+            'source': 'routes-source',
+            'filter': ['==', ['get', 'route_leg'], 'Outbound'], 
+            'paint': { 
+                'line-color': '#055160', 
+                'line-width': ['interpolate', ['linear'], ['zoom'], 7, 3, 12, 8], 
+                'line-opacity': 0.3,
+                'line-offset': ['interpolate', ['linear'], ['zoom'], 7, 1, 12, 4]
+            }
+        });
+        // Core Line
+        map.addLayer({
+            'id': 'outbound-lines',
+            'type': 'line',
+            'source': 'routes-source',
+            'filter': ['==', ['get', 'route_leg'], 'Outbound'], 
+            'paint': { 
+                'line-color': '#0dcaf0', 
+                'line-width': ['interpolate', ['linear'], ['zoom'], 7, 1.5, 12, 4], 
+                'line-opacity': 0.9,
+                'line-offset': ['interpolate', ['linear'], ['zoom'], 7, 1, 12, 4]
+            }
+        });
+
+        // 3. TEMP HAUL ROUTES (Slate Purple)
+        map.addLayer({
+            'id': 'temp-lines',
+            'type': 'line',
+            'source': 'routes-source',
+            'filter': ['==', ['get', 'route_leg'], 'Temporary Haul Route'], 
+            'paint': { 
+                'line-color': '#6610f2', 
+                'line-width': ['interpolate', ['linear'], ['zoom'], 7, 2, 12, 5], 
+                'line-opacity': 0.85, 
+                'line-dasharray': [1.5, 1.5] 
+            }
+        });
 
         // Alignment thinner (1.5)
         map.addLayer({ 'id': 'rail-alignment', 'type': 'line', 'source': 'alignment-source', 'layout': { 'visibility': document.getElementById('layer-alignment').checked ? 'visible' : 'none' }, 'paint': { 'line-color': '#000000', 'line-width': 1.5 } });
@@ -240,60 +306,295 @@
     function toggleNodes(visible) { nodeMarkersArray.forEach(el => el.style.display = visible ? 'flex' : 'none'); }
 </script>
 
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Rail Baltica Estonia Professional Theme Overrides */
+        body { font-family: 'Inter', sans-serif !important; }
+        
+        .sidebar {
+            background-color: rgba(255, 255, 255, 0.98) !important;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.08) !important;
+            border-right: none !important;
+            padding: 24px !important;
+        }
+
+        .rb-title {
+            color: #1a1f36 !important;
+            font-size: 19px !important;
+            font-weight: 700 !important;
+            letter-spacing: -0.3px;
+            margin-bottom: 20px !important;
+            padding-bottom: 10px !important;
+            border-bottom: 3px solid #E30613 !important;
+            text-transform: none !important;
+        }
+
+        .control-group, .forecast-box, .kpi-card {
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 8px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+            padding: 14px !important;
+            margin-bottom: 12px !important;
+            transition: all 0.2s ease;
+        }
+        
+        .control-group:hover, .forecast-box:hover { box-shadow: 0 4px 6px rgba(0,0,0,0.06) !important; }
+
+        h3 { color: #475569 !important; font-size: 12px !important; font-weight: 600 !important; letter-spacing: 0.5px; }
+        .kpi-val { color: #E30613 !important; font-size: 24px !important; }
+        
+        select {
+            appearance: none; background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important;
+            border-radius: 6px !important; padding: 8px 12px !important; font-family: 'Inter', sans-serif !important;
+            font-weight: 500 !important; color: #0f172a !important; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+        }
+
+        /* ----------------------------------------------------------------- */
+        /* V5.0 UPGRADE: ENTERPRISE POPUPS & HOVER EFFECTS                   */
+        /* ----------------------------------------------------------------- */
+        
+        /* 1. Massive, Responsive Popups */
+        .mapboxgl-popup { z-index: 1000 !important; }
+        .mapboxgl-popup-content {
+            width: max-content !important;
+            min-width: 280px !important;
+            max-width: 450px !important; /* Much wider for text */
+            padding: 20px !important;
+            border-radius: 12px !important;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.15) !important;
+            border: 1px solid #e2e8f0 !important;
+            font-family: 'Inter', sans-serif !important;
+        }
+        .mapboxgl-popup-close-button {
+            font-size: 20px; color: #94a3b8; padding: 6px 12px; transition: color 0.2s;
+        }
+        .mapboxgl-popup-close-button:hover { background-color: transparent !important; color: #E30613; }
+
+        /* 2. Tactile Icon Hover Effects */
+        .custom-marker > div {
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease !important;
+        }
+        .custom-marker:hover > div {
+            transform: scale(1.18) translateY(-3px) !important; /* Smooth pop-out */
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2) !important;
+            border: 2px solid #E30613 !important; /* Rail Baltica Red Border */
+            z-index: 999;
+        }
+
+        /* Widget Styling */
+        .custom-map-widget {
+            display: flex; flex-direction: column; background: #fff; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden; border: 1px solid #e2e8f0;
+        }
+        .widget-btn {
+            background: #fff; border: none; padding: 10px; cursor: pointer; border-bottom: 1px solid #f1f5f9;
+            transition: background 0.2s; font-size: 16px; color: #475569; display: flex; align-items: center; justify-content: center;
+        }
+        .widget-btn:hover { background: #f8fafc; color: #0f172a; }
+        .widget-btn.active { background: #E30613; color: white; }
+    </style>
+
     <script>
-        // Wait for the original V17 page to finish loading, then dynamically add our new UI
+        // --------------------------------------------------------------------
+        // UI INJECTION & MAP STYLE OVERRIDES
+        // --------------------------------------------------------------------
         window.addEventListener('DOMContentLoaded', (event) => {
+            let oldBasemap = document.getElementById('basemap-select');
+            if(oldBasemap) oldBasemap.parentElement.style.display = 'none';
+
             let sidebar = document.querySelector('.sidebar');
             if(sidebar) {
                 let pluginUI = `
-                <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px;">
-                    <h3 style="margin: 0 0 10px 0; font-size: 13px; color: #cc0000; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Forecasted Traffic Volume</h3>
-                    <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center; font-weight: bold;">
+                <div class="forecast-box">
+                    <h3 style="margin: 0 0 10px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">Forecasted Traffic Volume</h3>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 12px;">
+                        <div style="width: 48%;">
+                            <label style="font-size:11px; font-weight:600; color:#64748b;">From:</label>
+                            <select id="forecast-from" style="width:100%;" onchange="if(document.getElementById('toggle-forecast').checked) toggleForecastPlugin();">
+                                <option value="1">Month 1</option><option value="2">Month 2</option><option value="3">Month 3</option>
+                                <option value="4">Month 4</option><option value="5" selected>Month 5</option><option value="6">Month 6</option>
+                                <option value="7">Month 7</option><option value="8">Month 8</option><option value="9">Month 9</option>
+                                <option value="10">Month 10</option><option value="11">Month 11</option><option value="12">Month 12</option>
+                            </select>
+                        </div>
+                        <div style="width: 48%;">
+                            <label style="font-size:11px; font-weight:600; color:#64748b;">To:</label>
+                            <select id="forecast-to" style="width:100%;" onchange="if(document.getElementById('toggle-forecast').checked) toggleForecastPlugin();">
+                                <option value="1">Month 1</option><option value="2">Month 2</option><option value="3">Month 3</option>
+                                <option value="4">Month 4</option><option value="5">Month 5</option><option value="6">Month 6</option>
+                                <option value="7">Month 7</option><option value="8">Month 8</option><option value="9">Month 9</option>
+                                <option value="10">Month 10</option><option value="11" selected>Month 11</option><option value="12">Month 12</option>
+                            </select>
+                        </div>
+                    </div>
+                    <label style="font-size: 12px; cursor: pointer; display: flex; align-items: center; font-weight: 600; background: #f1f5f9; padding: 8px; border-radius: 6px; transition: background 0.2s;">
                         <input type="checkbox" id="toggle-forecast" onchange="toggleForecastPlugin()" style="margin-right: 8px;"> Show Forecast Routes
                     </label>
-                    <div id="forecast-status" style="margin-top: 5px; font-size: 11px; font-weight: bold; color: #666;">Ready to calculate.</div>
+                    <div id="forecast-status" style="margin-top: 10px; font-size: 11px; font-weight: 600; color: #94a3b8;">Waiting to calculate...</div>
                 </div>`;
-                
-                // Inject the UI into the bottom of the existing sidebar
                 sidebar.insertAdjacentHTML('beforeend', pluginUI);
             }
         });
 
-        // The completely standalone traffic calculation logic
+        // --------------------------------------------------------------------
+        // V5 HOVER ENGINE & WIDGET INJECTION
+        // --------------------------------------------------------------------
+        let mapReadyInterval = setInterval(() => {
+            if (typeof map !== 'undefined' && map.loaded()) {
+                clearInterval(mapReadyInterval);
+                
+                // Add Mapbox Basemap Widget
+                class BasemapWidgetControl {
+                    onAdd(map) {
+                        this._map = map;
+                        this._container = document.createElement('div');
+                        this._container.className = 'mapboxgl-ctrl custom-map-widget';
+                        this._container.innerHTML = `
+                            <button class="widget-btn active" title="Light Theme" onclick="changeTheme(this, 'mapbox://styles/mapbox/light-v11')">☀️</button>
+                            <button class="widget-btn" title="Dark Theme" onclick="changeTheme(this, 'mapbox://styles/mapbox/dark-v11')">🌙</button>
+                            <button class="widget-btn" title="Satellite" onclick="changeTheme(this, 'mapbox://styles/mapbox/satellite-streets-v12')">🌍</button>
+                            <button class="widget-btn" title="Streets" onclick="changeTheme(this, 'mapbox://styles/mapbox/streets-v12')">🛣️</button>
+                        `;
+                        return this._container;
+                    }
+                    onRemove() { this._container.parentNode.removeChild(this._container); this._map = undefined; }
+                }
+                map.addControl(new BasemapWidgetControl(), 'bottom-left');
+
+                // Identify Base Data Source
+                let allSources = Object.keys(map.getStyle().sources);
+                let targetSource = allSources.find(s => s.includes('route') || s.includes('a1')) || 'routes';
+
+                const applySolidColors = () => {
+                    // Force Solid Colors on Baseline Routes
+                    if (map.getLayer('inbound-lines')) {
+                        map.setPaintProperty('inbound-lines', 'line-color', '#10b981'); 
+                        map.setPaintProperty('inbound-lines', 'line-opacity', 1.0);
+                    }
+                    if (map.getLayer('outbound-lines')) {
+                        map.setPaintProperty('outbound-lines', 'line-color', '#f59e0b'); 
+                        map.setPaintProperty('outbound-lines', 'line-opacity', 1.0);
+                    }
+                    if (map.getLayer('temp-lines')) {
+                        map.setPaintProperty('temp-lines', 'line-color', '#8b5cf6'); 
+                        map.setPaintProperty('temp-lines', 'line-opacity', 1.0);
+                    }
+
+                    // Setup Universal Hover Glow Layer (Sits behind the routes)
+                    if (!map.getLayer('global-route-hover')) {
+                        map.addLayer({
+                            id: 'global-route-hover',
+                            type: 'line',
+                            source: targetSource,
+                            paint: {
+                                'line-color': '#ffffff',
+                                'line-width': 12,       /* Wide for glow effect */
+                                'line-opacity': 0.6,
+                                'line-blur': 4          /* Softens the edges */
+                            },
+                            filter: ['==', 'name', 'IMPOSSIBLE_VALUE'] // Hidden initially
+                        }, 'inbound-lines'); // Place it UNDER the route layers
+                    }
+                };
+
+                applySolidColors();
+                
+                // Track mouse over any route layer
+                const interactiveLayers = ['inbound-lines', 'outbound-lines', 'temp-lines', 'forecast-layer'];
+                interactiveLayers.forEach(layer => {
+                    // Check dynamically when mouse moves in case layer is added later
+                    map.on('mousemove', (e) => {
+                        let features = map.queryRenderedFeatures(e.point, { layers: interactiveLayers.filter(l => map.getLayer(l)) });
+                        if (features.length > 0) {
+                            map.getCanvas().style.cursor = 'pointer';
+                            let p = features[0].properties;
+                            // Match using whatever ID field exists
+                            let idMatch = p.Route_ID || p.route_id || p.name || p.ID || p.id;
+                            
+                            if (map.getLayer('global-route-hover') && idMatch) {
+                                map.setFilter('global-route-hover', [
+                                    'any',
+                                    ['==', 'Route_ID', idMatch],
+                                    ['==', 'route_id', idMatch],
+                                    ['==', 'name', idMatch],
+                                    ['==', 'ID', idMatch],
+                                    ['==', 'id', idMatch]
+                                ]);
+                            }
+                        } else {
+                            map.getCanvas().style.cursor = '';
+                            if (map.getLayer('global-route-hover')) {
+                                map.setFilter('global-route-hover', ['==', 'name', 'IMPOSSIBLE_VALUE']);
+                            }
+                        }
+                    });
+                });
+                
+                map.on('style.load', () => {
+                    setTimeout(() => {
+                        applySolidColors();
+                        if(document.getElementById('toggle-forecast') && document.getElementById('toggle-forecast').checked) {
+                            toggleForecastPlugin();
+                        }
+                    }, 500);
+                });
+            }
+        }, 500);
+
+        window.changeTheme = function(btn, styleUrl) {
+            document.querySelectorAll('.widget-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            map.setStyle(styleUrl);
+        };
+
+        // --------------------------------------------------------------------
+        // FORECAST ENGINE
+        // --------------------------------------------------------------------
         async function toggleForecastPlugin() {
             let isChecked = document.getElementById('toggle-forecast').checked;
             let status = document.getElementById('forecast-status');
             
-            // If turned off, remove the layers
             if (!isChecked) {
                 if(map.getLayer('forecast-layer')) map.removeLayer('forecast-layer');
                 if(map.getLayer('forecast-labels')) map.removeLayer('forecast-labels');
                 status.innerHTML = "Forecast cleared.";
-                status.style.color = "#666";
+                status.style.color = "#94a3b8";
                 return;
             }
             
-            status.innerHTML = "Fetching Forecast CSV...";
-            status.style.color = "#007bff";
+            let fromM = parseInt(document.getElementById('forecast-from').value);
+            let toM = parseInt(document.getElementById('forecast-to').value);
+            
+            if (fromM > toM) {
+                status.innerHTML = "❌ 'From' month must be before 'To' month!";
+                status.style.color = "#E30613";
+                return;
+            }
+
+            status.innerHTML = "Fetching CSV data...";
+            status.style.color = "#2563eb"; 
             
             try {
-                // Fetch from the GitHub sub-folder
                 let response = await fetch('./Scripts/wp3_timeline_forecast.csv');
-                if(!response.ok) throw new Error("Could not find ./Scripts/wp3_timeline_forecast.csv");
+                if(!response.ok) throw new Error("File missing at ./Scripts/wp3_timeline_forecast.csv");
                 let csvText = await response.text();
                 
                 let rows = csvText.replace(/\r/g, '').split('\n');
                 let forecastMap = {};
                 
-                // Parse CSV Data (Assuming M5 to M11 for the calculation window)
                 for(let i=1; i<rows.length; i++){
                     let cols = rows[i].split(',');
                     if(cols.length < 5) continue;
-                    let routeId = cols[0], stat = cols[1], joint = cols[2];
                     
-                    if(stat === 'Assigned') {
+                    let routeId = cols[0].toString().trim().toLowerCase(); 
+                    let stat = cols[1];
+                    let joint = cols[2];
+                    
+                    if(stat === 'Assigned' && routeId) {
                         let total = 0, peak = 0, months = 0;
-                        for(let m=5; m<=11; m++) { // M5 to M11
+                        for(let m=fromM; m<=toM; m++) {
                             let dVal = parseInt(cols[3+m])||0;
                             total += (dVal*22);
                             if(dVal > peak) peak = dVal;
@@ -305,89 +606,96 @@
                                 peak: peak,
                                 total: total,
                                 joint: joint,
-                                time: "M5 - M11"
+                                time: `M${fromM} to M${toM}`
                             };
                         }
                     }
                 }
                 
-                // Extract the existing data that V17 already loaded into the map!
-                // (This is the magic of the plugin architecture - it reads the state of Engine 1)
-                let existingSource = map.getSource('routes');
-                if (!existingSource) {
-                    // Fallback to try and find the source name if V17 named it differently
-                    let allSources = Object.keys(map.getStyle().sources);
-                    let target = allSources.find(s => s.includes('route') || s.includes('a1'));
-                    existingSource = map.getSource(target);
-                }
+                let allSources = Object.keys(map.getStyle().sources);
+                let target = allSources.find(s => s.includes('route') || s.includes('a1'));
+                let existingSource = map.getSource(target);
                 
                 let currentData = existingSource._data;
-                
-                // Inject the math results into the existing data
+                let matchCount = 0;
+                let sampleMapIds = new Set();
+                let sampleCsvIds = Object.keys(forecastMap).slice(0, 3);
+
                 currentData.features.forEach(f => {
                     if(f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString') {
                         let p = f.properties;
-                        let rId = p.Route_ID || p.route_id || p.name;
-                        if (rId && forecastMap[rId]) {
-                            p.is_forecast = true;
-                            p.f_avg = forecastMap[rId].avg;
-                            p.f_peak = forecastMap[rId].peak;
-                            p.f_total = forecastMap[rId].total;
-                            p.f_joint = forecastMap[rId].joint;
-                            p.f_time = forecastMap[rId].time;
-                        } else {
-                            p.is_forecast = false;
+                        let possibleIds = [p.Route_ID, p.route_id, p.name, p.ID, p.id, p.Link_ID, p.link_id, p.Route, p.route].filter(Boolean);
+                        let matched = false;
+                        
+                        for (let rawId of possibleIds) {
+                            let cleanId = rawId.toString().trim().toLowerCase();
+                            if (sampleMapIds.size < 4) sampleMapIds.add(cleanId);
+                            
+                            if (cleanId && forecastMap[cleanId]) {
+                                p.is_forecast = true;
+                                p.f_avg = forecastMap[cleanId].avg;
+                                p.f_peak = forecastMap[cleanId].peak;
+                                p.f_total = forecastMap[cleanId].total;
+                                p.f_joint = forecastMap[cleanId].joint;
+                                p.f_time = forecastMap[cleanId].time;
+                                matchCount++;
+                                matched = true;
+                                break; 
+                            }
                         }
+                        if (!matched) p.is_forecast = false;
                     }
                 });
                 
-                // Update the map's memory
                 existingSource.setData(currentData);
                 
-                // Draw the blue forecast lines on top of the V17 map
                 if (!map.getLayer('forecast-layer')) {
                     map.addLayer({
                         id: 'forecast-layer', type: 'line', source: existingSource.id,
                         filter: ['==', 'is_forecast', true],
-                        paint: { 'line-color': '#007bff', 'line-width': 7, 'line-opacity': 0.85 }
+                        paint: { 'line-color': '#2563eb', 'line-width': 7, 'line-opacity': 0.9 }
                     });
                     
-                    // Add volume labels
                     map.addLayer({
                         id: 'forecast-labels', type: 'symbol', source: existingSource.id,
                         filter: ['==', 'is_forecast', true],
                         layout: { 'symbol-placement': 'line-center', 'text-field': ['concat', 'Avg: ', ['get', 'f_avg']], 'text-size': 13, 'text-offset': [0,-1]},
-                        paint: { 'text-color': '#ffffff', 'text-halo-color': '#004085', 'text-halo-width': 2 }
+                        paint: { 'text-color': '#ffffff', 'text-halo-color': '#1e3a8a', 'text-halo-width': 2 }
                     });
                     
-                    // Add Plugin Popups
                     map.on('click', 'forecast-layer', function(e) {
                         let p = e.features[0].properties;
                         let rId = p.Route_ID || p.route_id || p.name || 'Unknown Route';
-                        let html = `<div style="font-family:sans-serif; min-width:200px;">
-                            <h4 style="margin:0 0 8px 0; border-bottom:1px solid #ccc; padding-bottom:4px; color:#007bff;">${rId} (Forecast)</h4>
-                            <p style="margin:4px 0; font-size:12px;"><b>Timeline:</b> ${p.f_time}</p>
-                            <p style="margin:4px 0; font-size:12px;"><b>Joint Use Road:</b> ${p.f_joint}</p>
-                            <div style="background:#f8f9fa; padding:8px; margin-top:8px; border-radius:4px; border:1px solid #eee;">
-                                <p style="margin:2px 0; font-size:11px;"><b>Average Daily:</b> ${p.f_avg} veh/day</p>
-                                <p style="margin:2px 0; font-size:11px;"><b>Peak Daily:</b> <span style="color:red;">${p.f_peak} veh/day</span></p>
-                                <p style="margin:2px 0; font-size:11px;"><b>Total Est:</b> ${p.f_total} vehicles</p>
+                        let html = `<div style="font-family:'Inter', sans-serif; min-width:200px;">
+                            <h4 style="margin:0 0 8px 0; border-bottom:2px solid #e2e8f0; padding-bottom:4px; color:#1e3a8a;">${rId} (Forecast)</h4>
+                            <p style="margin:4px 0; font-size:12px; color:#475569;"><b>Timeline:</b> ${p.f_time}</p>
+                            <p style="margin:4px 0; font-size:12px; color:#475569;"><b>Joint Use Road:</b> ${p.f_joint}</p>
+                            <div style="background:#f8fafc; padding:10px; margin-top:10px; border-radius:6px; border:1px solid #e2e8f0;">
+                                <p style="margin:3px 0; font-size:12px;"><b>Average Daily:</b> ${p.f_avg} veh/day</p>
+                                <p style="margin:3px 0; font-size:12px;"><b>Peak Daily:</b> <span style="color:#E30613; font-weight:600;">${p.f_peak} veh/day</span></p>
+                                <p style="margin:3px 0; font-size:12px;"><b>Total Est:</b> ${p.f_total} vehicles</p>
                             </div></div>`;
                         new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
                     });
-                    map.on('mouseenter', 'forecast-layer', () => map.getCanvas().style.cursor = 'pointer');
-                    map.on('mouseleave', 'forecast-layer', () => map.getCanvas().style.cursor = '');
                 }
                 
-                status.innerHTML = "✅ Forecast Calculated & Drawn";
-                status.style.color = "green";
+                if (matchCount > 0) {
+                    status.innerHTML = `✅ Displaying ${matchCount} active routes.`;
+                    status.style.color = "#10b981"; 
+                } else {
+                    let mapIdStr = Array.from(sampleMapIds).slice(0,3).join(", ");
+                    let csvIdStr = sampleCsvIds.join(", ");
+                    status.innerHTML = `<span style="color:#E30613;">⚠️ Route IDs don't match.</span><br>
+                                        <span style="font-weight:normal; font-size:10px; color:#64748b;">
+                                        <b>CSV uses IDs like:</b> ${csvIdStr}<br>
+                                        <b>Map uses IDs like:</b> ${mapIdStr}</span>`;
+                }
                 
             } catch(e) {
                 status.innerHTML = "❌ Failed: " + e.message;
-                status.style.color = "red";
+                status.style.color = "#E30613";
             }
         }
     </script>
-    </body>
     
 </html>
