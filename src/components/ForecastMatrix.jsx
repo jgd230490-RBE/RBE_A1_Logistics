@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 
 const YEARS = [2026, 2027, 2028, 2029, 2030];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -9,7 +9,7 @@ const MATERIAL_TYPES = ['Limestone - rockfill', 'Sand', 'Gravel', 'Limestone (Sh
 const QUARRIES = ['Anelema limestone', 'Kobra Limestone', 'Potsepa sand', 'Eassalu III sand', 'Tarva limestone', 'Tarva III limestone', 'Vangu sand', 'Viluvere sand', 'Tammistu gravel', 'Viluvere II gravel', 'Estonia mine'];
 const GATES = ['Tootsi Station (EW)', 'Timmermanni Viadukt (EW)', 'Kivisilla viadukt (EW)', 'Urge station (EW)', 'IMF/Rääma bog', 'Jõekääru (EW)', 'Metsakalmistu (EW)'];
 
-const WORKING_DAYS = 22;
+const WORKING_DAYS_PER_MONTH = 22;
 
 const ForecastMatrix = () => {
   const [selections, setSelections] = useState({
@@ -27,64 +27,64 @@ const ForecastMatrix = () => {
   );
 
   const [submitting, setSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState(null);
+  const [statusMsg, setStatusMsg] = useState(null);
 
-  const handleSelectionChange = (field, value) => {
-    setSelections((prev) => ({ ...prev, [field]: value }));
+  const handleSelectionChange = (key, value) => {
+    setSelections((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleMonthChange = (month, value) => {
     setMonthlyValues((prev) => ({ ...prev, [month]: value }));
   };
 
-  const monthlySum = useMemo(() => {
-    return MONTHS.reduce((sum, m) => sum + (parseFloat(monthlyValues[m]) || 0), 0);
-  }, [monthlyValues]);
+  const monthlySum = MONTHS.reduce(
+    (sum, m) => sum + (parseFloat(monthlyValues[m]) || 0),
+    0
+  );
 
-  const yearlySubtotal = useMemo(() => monthlySum * WORKING_DAYS, [monthlySum]);
+  const yearlySubtotal = monthlySum * WORKING_DAYS_PER_MONTH;
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    setSubmitStatus(null);
+    setStatusMsg(null);
 
     const payload = {
       ...selections,
-      monthlyValues: MONTHS.reduce((acc, m) => {
-        acc[m] = parseFloat(monthlyValues[m]) || 0;
-        return acc;
-      }, {}),
+      monthlyValues: MONTHS.reduce(
+        (acc, m) => ({ ...acc, [m]: parseFloat(monthlyValues[m]) || 0 }),
+        {}
+      ),
       monthlySum,
       yearlySubtotal,
-      workingDaysPerMonth: WORKING_DAYS,
     };
 
     try {
-      const response = await fetch('http://localhost:8000/api/forecasts/submit', {
+      const res = await fetch('http://localhost:8000/api/forecasts/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
+      if (!res.ok) {
+        throw new Error(`Server responded with ${res.status}`);
       }
 
-      await response.json().catch(() => ({}));
-      setSubmitStatus({ type: 'success', message: 'Forecast submitted successfully.' });
-    } catch (error) {
-      setSubmitStatus({ type: 'error', message: `Submission failed: ${error.message}` });
+      await res.json().catch(() => ({}));
+      setStatusMsg({ type: 'success', text: 'Forecast submitted successfully.' });
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: `Submission failed: ${err.message}` });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const renderSelect = (label, field, options) => (
+  const Dropdown = ({ label, value, options, onChange }) => (
     <div className="flex flex-col">
       <label className="mb-1 text-sm font-medium text-gray-700">{label}</label>
       <select
-        value={selections[field]}
-        onChange={(e) => handleSelectionChange(field, e.target.value)}
-        className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
       >
         {options.map((opt) => (
           <option key={opt} value={opt}>
@@ -96,38 +96,75 @@ const ForecastMatrix = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="mx-auto max-w-7xl rounded-xl bg-white p-6 shadow-lg">
-        <div className="mb-6 border-b border-gray-200 pb-4">
-          <h1 className="text-2xl font-bold text-gray-800">Rail Logistics Forecast Matrix</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Configure forecast parameters and enter monthly production volumes.
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Rail Logistics Forecast Matrix
+          </h1>
+          <p className="text-sm text-gray-500">
+            Enter monthly forecast quantities and submit for processing.
           </p>
         </div>
 
-        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {renderSelect('Year', 'year', YEARS)}
-          {renderSelect('IPT Team', 'iptTeam', IPT_TEAMS)}
-          {renderSelect('Work Section', 'workSection', WORK_SECTIONS)}
-          {renderSelect('Work Type', 'workType', WORK_TYPES)}
-          {renderSelect('Material Type', 'materialType', MATERIAL_TYPES)}
-          {renderSelect('Quarry', 'quarry', QUARRIES)}
-          {renderSelect('Gate', 'gate', GATES)}
+        <div className="mb-6 grid grid-cols-1 gap-4 rounded-lg bg-white p-6 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
+          <Dropdown
+            label="Year"
+            value={selections.year}
+            options={YEARS}
+            onChange={(v) => handleSelectionChange('year', Number(v))}
+          />
+          <Dropdown
+            label="IPT Team"
+            value={selections.iptTeam}
+            options={IPT_TEAMS}
+            onChange={(v) => handleSelectionChange('iptTeam', v)}
+          />
+          <Dropdown
+            label="Work Section"
+            value={selections.workSection}
+            options={WORK_SECTIONS}
+            onChange={(v) => handleSelectionChange('workSection', v)}
+          />
+          <Dropdown
+            label="Work Type"
+            value={selections.workType}
+            options={WORK_TYPES}
+            onChange={(v) => handleSelectionChange('workType', v)}
+          />
+          <Dropdown
+            label="Material Type"
+            value={selections.materialType}
+            options={MATERIAL_TYPES}
+            onChange={(v) => handleSelectionChange('materialType', v)}
+          />
+          <Dropdown
+            label="Quarry"
+            value={selections.quarry}
+            options={QUARRIES}
+            onChange={(v) => handleSelectionChange('quarry', v)}
+          />
+          <Dropdown
+            label="Gate"
+            value={selections.gate}
+            options={GATES}
+            onChange={(v) => handleSelectionChange('gate', v)}
+          />
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <div className="mb-6 overflow-x-auto rounded-lg bg-white shadow-sm">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-100">
               <tr>
-                <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
                   Metric
                 </th>
-                {MONTHS.map((month) => (
+                {MONTHS.map((m) => (
                   <th
-                    key={month}
-                    className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600"
+                    key={m}
+                    className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600"
                   >
-                    {month}
+                    {m}
                   </th>
                 ))}
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">
@@ -135,53 +172,37 @@ const ForecastMatrix = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="divide-y divide-gray-200">
               <tr>
-                <td className="sticky left-0 z-10 bg-white px-4 py-3 text-sm font-medium text-gray-700">
-                  Daily Volume
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-700">
+                  Daily Quantity
                 </td>
-                {MONTHS.map((month) => (
-                  <td key={month} className="px-2 py-2">
+                {MONTHS.map((m) => (
+                  <td key={m} className="px-2 py-2">
                     <input
                       type="number"
-                      value={monthlyValues[month]}
-                      onChange={(e) => handleMonthChange(month, e.target.value)}
+                      value={monthlyValues[m]}
+                      onChange={(e) => handleMonthChange(m, e.target.value)}
+                      className="w-20 rounded-md border border-gray-300 px-2 py-1 text-center text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       placeholder="0"
-                      className="w-20 rounded-md border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-200"
                     />
                   </td>
                 ))}
-                <td className="px-4 py-3 text-center text-sm font-semibold text-gray-800">
+                <td className="px-4 py-3 text-center text-sm font-semibold text-gray-900">
                   {monthlySum.toLocaleString()}
                 </td>
               </tr>
-              <tr className="bg-blue-50">
-                <td className="sticky left-0 z-10 bg-blue-50 px-4 py-3 text-sm font-semibold text-gray-800">
-                  Monthly Subtotal (×{WORKING_DAYS} days)
-                </td>
-                {MONTHS.map((month) => {
-                  const val = (parseFloat(monthlyValues[month]) || 0) * WORKING_DAYS;
-                  return (
-                    <td key={month} className="px-4 py-3 text-center text-sm text-gray-700">
-                      {val.toLocaleString()}
-                    </td>
-                  );
-                })}
-                <td className="px-4 py-3 text-center text-sm font-bold text-blue-700">
-                  {yearlySubtotal.toLocaleString()}
-                </td>
-              </tr>
-              <tr className="bg-gray-100">
-                <td className="sticky left-0 z-10 bg-gray-100 px-4 py-3 text-sm font-bold text-gray-800">
+              <tr className="bg-indigo-50">
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-bold text-indigo-800">
                   Yearly Subtotal
                 </td>
                 <td
                   colSpan={MONTHS.length}
-                  className="px-4 py-3 text-right text-sm text-gray-500"
+                  className="px-4 py-3 text-sm text-indigo-700"
                 >
-                  SUM(months) × {WORKING_DAYS} working days
+                  SUM(months) × {WORKING_DAYS_PER_MONTH} working days
                 </td>
-                <td className="px-4 py-3 text-center text-base font-bold text-green-700">
+                <td className="px-4 py-3 text-center text-sm font-bold text-indigo-900">
                   {yearlySubtotal.toLocaleString()}
                 </td>
               </tr>
@@ -189,25 +210,25 @@ const ForecastMatrix = () => {
           </table>
         </div>
 
-        <div className="mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            {submitStatus && (
-              <p
-                className={`text-sm font-medium ${
-                  submitStatus.type === 'success' ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {submitStatus.message}
-              </p>
-            )}
-          </div>
+        <div className="flex items-center gap-4">
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="rounded-md bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-md bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? 'Submitting...' : 'Submit Forecast'}
           </button>
+
+          {statusMsg && (
+            <span
+              className={`text-sm font-medium ${
+                statusMsg.type === 'success' ? 'text-green-600' : 'text-red-600'
+              }`}
+            >
+              {statusMsg.text}
+            </span>
+          )}
         </div>
       </div>
     </div>
