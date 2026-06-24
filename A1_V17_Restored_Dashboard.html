@@ -161,11 +161,77 @@
         if (!map.getSource('alignment-source')) map.addSource('alignment-source', { type: 'geojson', data: alignment_data });
         if (!map.getSource('chainage-source')) map.addSource('chainage-source', { type: 'geojson', data: chainage_global_data });
 
-        // V17 Layers RESTORED
-        map.addLayer({ 'id': 'inbound-lines', 'type': 'line', 'source': 'routes-source', 'paint': { 'line-color': '#00ba3e', 'line-width': 3, 'line-opacity': 0.4 } });
-        map.addLayer({ 'id': 'outbound-lines', 'type': 'line', 'source': 'routes-source', 'paint': { 'line-color': '#ff8c00', 'line-width': 3, 'line-opacity': 0.4 } });
-        map.addLayer({ 'id': 'temp-lines', 'type': 'line', 'source': 'routes-source', 'paint': { 'line-color': '#cc00ff', 'line-width': 4, 'line-opacity': 0.9 } });
-        map.addLayer({ 'id': 'rail-link', 'type': 'line', 'source': 'routes-source', 'filter': ['==', 'type', 'Rail Link'], 'layout': { 'visibility': document.getElementById('layer-rail').checked ? 'visible' : 'none' }, 'paint': { 'line-color': '#1e90ff', 'line-width': 4, 'line-dasharray': [3, 2] } });
+        // --- PROFESSIONAL MAPBOX STYLING (Corporate Palette + Highway Offsets) ---
+        
+        // 1. INBOUND ROUTES (Deep Sapphire Blue)
+        // Casing (Halo)
+        map.addLayer({
+            'id': 'inbound-lines-casing',
+            'type': 'line',
+            'source': 'routes-source',
+            'filter': ['==', ['get', 'route_leg'], 'Inbound'], 
+            'paint': { 
+                'line-color': '#084298', 
+                'line-width': ['interpolate', ['linear'], ['zoom'], 7, 3, 12, 8], 
+                'line-opacity': 0.3,
+                'line-offset': ['interpolate', ['linear'], ['zoom'], 7, -1, 12, -4]
+            }
+        });
+        // Core Line
+        map.addLayer({
+            'id': 'inbound-lines',
+            'type': 'line',
+            'source': 'routes-source',
+            'filter': ['==', ['get', 'route_leg'], 'Inbound'], 
+            'paint': { 
+                'line-color': '#0d6efd', 
+                'line-width': ['interpolate', ['linear'], ['zoom'], 7, 1.5, 12, 4], 
+                'line-opacity': 0.9,
+                'line-offset': ['interpolate', ['linear'], ['zoom'], 7, -1, 12, -4]
+            }
+        });
+
+        // 2. OUTBOUND ROUTES (Bright Cyan/Teal)
+        // Casing (Halo)
+        map.addLayer({
+            'id': 'outbound-lines-casing',
+            'type': 'line',
+            'source': 'routes-source',
+            'filter': ['==', ['get', 'route_leg'], 'Outbound'], 
+            'paint': { 
+                'line-color': '#055160', 
+                'line-width': ['interpolate', ['linear'], ['zoom'], 7, 3, 12, 8], 
+                'line-opacity': 0.3,
+                'line-offset': ['interpolate', ['linear'], ['zoom'], 7, 1, 12, 4]
+            }
+        });
+        // Core Line
+        map.addLayer({
+            'id': 'outbound-lines',
+            'type': 'line',
+            'source': 'routes-source',
+            'filter': ['==', ['get', 'route_leg'], 'Outbound'], 
+            'paint': { 
+                'line-color': '#0dcaf0', 
+                'line-width': ['interpolate', ['linear'], ['zoom'], 7, 1.5, 12, 4], 
+                'line-opacity': 0.9,
+                'line-offset': ['interpolate', ['linear'], ['zoom'], 7, 1, 12, 4]
+            }
+        });
+
+        // 3. TEMP HAUL ROUTES (Slate Purple)
+        map.addLayer({
+            'id': 'temp-lines',
+            'type': 'line',
+            'source': 'routes-source',
+            'filter': ['==', ['get', 'route_leg'], 'Temporary Haul Route'], 
+            'paint': { 
+                'line-color': '#6610f2', 
+                'line-width': ['interpolate', ['linear'], ['zoom'], 7, 2, 12, 5], 
+                'line-opacity': 0.85, 
+                'line-dasharray': [1.5, 1.5] 
+            }
+        });
 
         // Alignment thinner (1.5)
         map.addLayer({ 'id': 'rail-alignment', 'type': 'line', 'source': 'alignment-source', 'layout': { 'visibility': document.getElementById('layer-alignment').checked ? 'visible' : 'none' }, 'paint': { 'line-color': '#000000', 'line-width': 1.5 } });
