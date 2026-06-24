@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 
 const YEARS = [2026, 2027, 2028, 2029, 2030];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -21,29 +21,22 @@ const ForecastMatrix = () => {
   const [gate, setGate] = useState(GATES[0]);
 
   const [monthlyValues, setMonthlyValues] = useState(
-    MONTHS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {})
+    MONTHS.reduce((acc, m) => ({ ...acc, [m]: '' }), {})
   );
 
   const [submitting, setSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
 
   const handleMonthChange = (month, value) => {
-    const numeric = value === '' ? 0 : parseFloat(value);
-    setMonthlyValues((prev) => ({
-      ...prev,
-      [month]: isNaN(numeric) ? 0 : numeric,
-    }));
+    setMonthlyValues((prev) => ({ ...prev, [month]: value }));
   };
 
-  const monthlySum = useMemo(
-    () => MONTHS.reduce((sum, m) => sum + (Number(monthlyValues[m]) || 0), 0),
-    [monthlyValues]
+  const monthlySum = MONTHS.reduce(
+    (sum, m) => sum + (parseFloat(monthlyValues[m]) || 0),
+    0
   );
 
-  const yearlySubtotal = useMemo(
-    () => monthlySum * WORKING_DAYS_PER_MONTH,
-    [monthlySum]
-  );
+  const yearlySubtotal = monthlySum * WORKING_DAYS_PER_MONTH;
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -57,7 +50,10 @@ const ForecastMatrix = () => {
       materialType,
       quarry,
       gate,
-      monthlyValues,
+      monthlyValues: MONTHS.reduce(
+        (acc, m) => ({ ...acc, [m]: parseFloat(monthlyValues[m]) || 0 }),
+        {}
+      ),
       monthlySum,
       yearlySubtotal,
       workingDaysPerMonth: WORKING_DAYS_PER_MONTH,
@@ -76,7 +72,7 @@ const ForecastMatrix = () => {
         throw new Error(`Server responded with status ${response.status}`);
       }
 
-      await response.json().catch(() => null);
+      await response.json().catch(() => ({}));
       setSubmitStatus({ type: 'success', message: 'Forecast submitted successfully.' });
     } catch (error) {
       setSubmitStatus({ type: 'error', message: `Submission failed: ${error.message}` });
@@ -91,7 +87,7 @@ const ForecastMatrix = () => {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
       >
         {options.map((opt) => (
           <option key={opt} value={opt}>
@@ -103,100 +99,105 @@ const ForecastMatrix = () => {
   );
 
   return (
-    <div className="mx-auto max-w-7xl p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Rail Logistics Forecast Matrix</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Plan and submit monthly material forecasts. Yearly subtotal assumes {WORKING_DAYS_PER_MONTH} working days per month.
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="mx-auto max-w-7xl rounded-lg bg-white shadow-md">
+        <div className="border-b border-gray-200 px-6 py-4">
+          <h1 className="text-2xl font-bold text-gray-800">
+            Rail Logistics Forecasting Platform
+          </h1>
+          <p className="text-sm text-gray-500">
+            Configure forecast parameters and enter monthly volumes.
+          </p>
+        </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        {renderSelect('Year', selectedYear, (v) => setSelectedYear(Number(v)), YEARS)}
-        {renderSelect('IPT Team', iptTeam, setIptTeam, IPT_TEAMS)}
-        {renderSelect('Work Section', workSection, setWorkSection, WORK_SECTIONS)}
-        {renderSelect('Work Type', workType, setWorkType, WORK_TYPES)}
-        {renderSelect('Material Type', materialType, setMaterialType, MATERIAL_TYPES)}
-        {renderSelect('Quarry', quarry, setQuarry, QUARRIES)}
-        {renderSelect('Gate', gate, setGate, GATES)}
-      </div>
+        <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
+          {renderSelect('Year', selectedYear, (v) => setSelectedYear(Number(v)), YEARS)}
+          {renderSelect('IPT Team', iptTeam, setIptTeam, IPT_TEAMS)}
+          {renderSelect('Work Section', workSection, setWorkSection, WORK_SECTIONS)}
+          {renderSelect('Work Type', workType, setWorkType, WORK_TYPES)}
+          {renderSelect('Material Type', materialType, setMaterialType, MATERIAL_TYPES)}
+          {renderSelect('Quarry', quarry, setQuarry, QUARRIES)}
+          {renderSelect('Gate', gate, setGate, GATES)}
+        </div>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="sticky left-0 z-10 bg-gray-100 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                Metric
-              </th>
-              {MONTHS.map((m) => (
-                <th
-                  key={m}
-                  className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600"
-                >
-                  {m}
+        <div className="overflow-x-auto px-6 pb-6">
+          <table className="min-w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="border border-gray-200 px-3 py-2 text-left font-semibold text-gray-700">
+                  Metric
                 </th>
-              ))}
-              <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">
-                Total
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
-            <tr>
-              <td className="sticky left-0 z-10 bg-white px-4 py-3 text-sm font-medium text-gray-900">
-                Monthly Volume
-              </td>
-              {MONTHS.map((m) => (
-                <td key={m} className="px-2 py-2 text-center">
-                  <input
-                    type="number"
-                    value={monthlyValues[m]}
-                    onChange={(e) => handleMonthChange(m, e.target.value)}
-                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-right text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
+                {MONTHS.map((m) => (
+                  <th
+                    key={m}
+                    className="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-700"
+                  >
+                    {m}
+                  </th>
+                ))}
+                <th className="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-700">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border border-gray-200 px-3 py-2 font-medium text-gray-700">
+                  Monthly Volume
                 </td>
-              ))}
-              <td className="px-4 py-3 text-center text-sm font-semibold text-gray-900">
-                {monthlySum.toLocaleString()}
-              </td>
-            </tr>
-            <tr className="bg-blue-50">
-              <td className="sticky left-0 z-10 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-900">
-                Yearly Subtotal
-              </td>
-              <td
-                colSpan={MONTHS.length}
-                className="px-4 py-3 text-center text-sm text-blue-700"
-              >
-                SUM(months) × {WORKING_DAYS_PER_MONTH} working days
-              </td>
-              <td className="px-4 py-3 text-center text-sm font-bold text-blue-900">
-                {yearlySubtotal.toLocaleString()}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                {MONTHS.map((m) => (
+                  <td key={m} className="border border-gray-200 px-1 py-1">
+                    <input
+                      type="number"
+                      value={monthlyValues[m]}
+                      onChange={(e) => handleMonthChange(m, e.target.value)}
+                      className="w-20 rounded border border-gray-300 px-2 py-1 text-right text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="0"
+                    />
+                  </td>
+                ))}
+                <td className="border border-gray-200 px-3 py-2 text-right font-semibold text-gray-800">
+                  {monthlySum.toLocaleString()}
+                </td>
+              </tr>
+              <tr className="bg-blue-50">
+                <td className="border border-gray-200 px-3 py-2 font-semibold text-gray-800">
+                  Yearly Subtotal
+                </td>
+                <td
+                  className="border border-gray-200 px-3 py-2 text-right font-bold text-blue-700"
+                  colSpan={MONTHS.length + 1}
+                >
+                  {yearlySubtotal.toLocaleString()}{' '}
+                  <span className="text-xs font-normal text-gray-500">
+                    (Sum × {WORKING_DAYS_PER_MONTH} working days)
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-      <div className="mt-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="flex flex-col items-end gap-3 border-t border-gray-200 px-6 py-4">
           {submitStatus && (
-            <p
-              className={`text-sm font-medium ${
-                submitStatus.type === 'success' ? 'text-green-600' : 'text-red-600'
+            <div
+              className={`w-full rounded-md px-4 py-2 text-sm ${
+                submitStatus.type === 'success'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-red-100 text-red-800'
               }`}
             >
               {submitStatus.message}
-            </p>
+            </div>
           )}
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="rounded-md bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-300"
+          >
+            {submitting ? 'Submitting...' : 'Submit Forecast'}
+          </button>
         </div>
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="rounded-md bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {submitting ? 'Submitting...' : 'Submit Forecast'}
-        </button>
       </div>
     </div>
   );
